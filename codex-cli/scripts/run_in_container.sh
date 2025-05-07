@@ -58,6 +58,8 @@ cleanup
 
 # Run the container with the specified directory mounted at the same path inside the container.
 docker run --name "$CONTAINER_NAME" -d \
+  -e COST_INPUT_PER_TOKEN \
+  -e COST_OUTPUT_PER_TOKEN \
   -e OPENAI_API_KEY \
   --cap-add=NET_ADMIN \
   --cap-add=NET_RAW \
