@@ -32,6 +32,7 @@ import { handleExecCommand } from "./handle-exec-command.js";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { randomUUID } from "node:crypto";
 import OpenAI, { APIConnectionTimeoutError } from "openai";
+import chalk from "chalk";
 
 // Wait time before retrying after rate limit errors (ms).
 const RATE_LIMIT_RETRY_WAIT_MS = parseInt(
@@ -145,22 +146,26 @@ export class AgentLoop {
   private canceled = false;
 
   /**
-   * Local conversation transcript used when `disableResponseStorage === true`. Holds
-   * all non‑system items exchanged so far so we can provide full context on
+   * Local conversation transcript used when `disableResponseStorage === true`.
+   * Holds all non‑system items exchanged so far so we can provide full context on
    * every request.
    */
   private transcript: Array<ResponseInputItem> = [];
-  /** Function calls that were emitted by the model but never answered because
-   *  the user cancelled the run.  We keep the `call_id`s around so the *next*
-   *  request can send a dummy `function_call_output` that satisfies the
-   *  contract and prevents the
-   *    400 | No tool output found for function call …
-   *  error from OpenAI. */
+  /**
+   * Function calls that were emitted by the model but never answered because
+   * the user cancelled the run.  We keep the `call_id`s around so the *next*
+   * request can send a dummy `function_call_output` that satisfies the
+   * contract and prevents the `No tool output found` error.
+   */
   private pendingAborts: Set<string> = new Set();
   /** Set to true by `terminate()` – prevents any further use of the instance. */
   private terminated = false;
   /** Master abort controller – fires when terminate() is invoked. */
   private readonly hardAbort = new AbortController();
+  // Cumulative costs for this session (in local currency units)
+  private sessionInputCost = 0;
+  private sessionOutputCost = 0;
+  private sessionTotalCost = 0;
 
   /**
    * Abort the ongoing request/stream, if any. This allows callers (typically
@@ -953,6 +958,32 @@ export class AgentLoop {
                 if (thisGeneration === this.generation && !this.canceled) {
                   for (const item of event.response.output) {
                     stageItem(item as ResponseItem);
+                  }
+                  // Stage a system message with token usage after the assistant response
+                  if (event.response.usage) {
+                    const u = event.response.usage;
+                    // Estimate cost based on configured cost per token
+                    const inputCostPerToken = parseFloat(process.env["COST_INPUT_PER_TOKEN"] ?? "0");
+                    const outputCostPerToken = parseFloat(process.env["COST_OUTPUT_PER_TOKEN"] ?? "0");
+                    const inputCost = u.input_tokens * inputCostPerToken;
+                    const outputCost = u.output_tokens * outputCostPerToken;
+                    const totalCost = inputCost + outputCost;
+                    // Accumulate session totals
+                    this.sessionInputCost += inputCost;
+                    this.sessionOutputCost += outputCost;
+                    this.sessionTotalCost += totalCost;
+                    // Helper to format cost values with currency symbol
+                    const formatCurrency = (amount: number): string => `$${amount.toFixed(2)}`;
+                    // Display per-request and cumulative session costs with currency
+                    const usageText =
+                      `Usage: ${u.input_tokens} input tokens, ${u.output_tokens} output tokens, ${u.total_tokens} total tokens; ` +
+                      `Estimated cost: input ${chalk.green(formatCurrency(inputCost))}, output ${chalk.yellow(formatCurrency(outputCost))}, total ${chalk.red(formatCurrency(totalCost))}; ` +
+                      `Session: input ${chalk.green(formatCurrency(this.sessionInputCost))}, output ${chalk.yellow(formatCurrency(this.sessionOutputCost))}, total ${chalk.red(formatCurrency(this.sessionTotalCost))}`;
+                    stageItem({
+                      type: "message",
+                      role: "system",
+                      content: [{ type: "input_text", text: usageText }],
+                    } as ResponseItem);
                   }
                 }
                 if (
