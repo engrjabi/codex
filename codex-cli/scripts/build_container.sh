@@ -13,4 +13,4 @@ pnpm run build
 rm -rf ./dist/openai-codex-*.tgz
 pnpm pack --pack-destination ./dist
 mv ./dist/openai-codex-*.tgz ./dist/codex.tgz
-docker build -t codex -f "./Dockerfile" .
+docker build --progress=plain -t codex -f "./Dockerfile" .
