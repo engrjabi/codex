@@ -93,10 +93,4 @@ docker exec --user root "$container_id" bash -c "rm -f /usr/local/bin/init_firew
 # Execute the provided command in the container, ensuring it runs in the work directory.
 # We use a parameterized bash command to safely handle the command and directory.
 
-quoted_args=""
-for arg in "$@"; do
-  quoted_args+=" $(printf '%q' "$arg")"
-done
-#docker exec -it "$container_id" bash -c "cd \"/app$WORK_DIR\" && codex --provider gemini --model gemini-2.5-pro-preview-05-06 --full-auto ${quoted_args}"
-#docker exec -it "$container_id" bash -c "cd \"/app$WORK_DIR\" && codex --model o4-mini --reasoning medium --full-auto ${quoted_args}"
-docker exec -it "$container_id" bash -c "cd \"/app$WORK_DIR\" && codex --model codex-mini-latest --reasoning low --full-auto ${quoted_args}"
+docker exec -it "$container_id" bash -c "cd \"/app$WORK_DIR\" && codex $*"
