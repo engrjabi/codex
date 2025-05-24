@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:22-slim
 
 ARG TZ
 ENV TZ="$TZ"
@@ -29,6 +29,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN mkdir -p /usr/local/share/npm-global && \
   chown -R node:node /usr/local/share
 
+# Install Python 3.11
+RUN apt-get update && \
+    apt-get install -y python3.11 python3-pip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Optionally, set python3.12 as default
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+
+RUN apt-get update && apt-get install -y pipx python3-venv && rm -rf /var/lib/apt/lists/*
+
 ARG USERNAME=node
 
 # Set up non-root user
@@ -49,6 +59,10 @@ RUN npm install -g codex.tgz \
 # Inside the container we consider the environment already sufficiently locked
 # down, therefore instruct Codex CLI to allow running without sandboxing.
 ENV CODEX_UNSAFE_ALLOW_NO_SANDBOX=1
+
+RUN pipx install black
+ENV PATH="/home/node/.local/bin:${PATH}"
+RUN black --version
 
 # Copy and set up firewall script as root.
 USER root
