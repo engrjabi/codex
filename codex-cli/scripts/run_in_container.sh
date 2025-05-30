@@ -39,7 +39,7 @@ trap cleanup EXIT
 
 # Ensure a command is provided.
 if [ "$#" -eq 0 ]; then
-  echo "Usage: $0 [--work_dir directory] \"COMMAND\""
+  echo "Usage: $0 [--work_dir directory] "COMMAND""
   exit 1
 fi
 
@@ -93,4 +93,4 @@ docker exec --user root "$container_id" bash -c "rm -f /usr/local/bin/init_firew
 # Execute the provided command in the container, ensuring it runs in the work directory.
 # We use a parameterized bash command to safely handle the command and directory.
 
-docker exec -it "$container_id" bash -c "cd \"/app$WORK_DIR\" && codex $*"
+docker exec -it "$container_id" bash -c "cd \"/app$WORK_DIR\" && codex \"\$@\"" bash "$@"
