@@ -1,0 +1,9 @@
+alias cxd='codex --full-auto -p dms -m gemini-2.5-flash-thinking'
+alias cxo='codex --full-auto -p openai -m codex-mini-latest'
+alias cx='codex --full-auto -p dms -m gemini-2.5-flash-thinking'
+
+export HISTORY_SUBSTRING_SEARCH_FUZZY=1
+bindkey '^[OA' history-substring-search-up
+bindkey '^[OB' history-substring-search-down
+
+

@@ -42,13 +42,39 @@ iptables -A OUTPUT -o lo -j ACCEPT
 
 # Create ipset with CIDR support
 ipset create allowed-domains hash:net
+declare -A added_ips=()
 
-# Resolve and add other allowed domains
+# Follow CNAME chains to resolve domain to IP addresses
+resolve_ips() {
+    local name="$1"
+    local results ip_list cname_list
+    ip_list=()
+    cname_list=()
+    results=$(dig +short A "$name")
+    for r in $results; do
+        if [[ $r =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            ip_list+=("$r")
+        else
+            cname_list+=("$r")
+        fi
+    done
+    if [ ${#cname_list[@]} -gt 0 ]; then
+        for c in "${cname_list[@]}"; do
+            resolve_ips "$c"
+        done
+    else
+        for ip in "${ip_list[@]}"; do
+            echo "$ip"
+        done
+    fi
+}
+
+# Resolve and add other allowed domains, following CNAME chains
 for domain in "${ALLOWED_DOMAINS[@]}"; do
     echo "Resolving $domain..."
-    ips=$(dig +short A "$domain")
+    ips=$(resolve_ips "$domain")
     if [ -z "$ips" ]; then
-        echo "ERROR: Failed to resolve $domain"
+        echo "ERROR: Failed to resolve $domain to IP addresses"
         exit 1
     fi
 
@@ -57,8 +83,13 @@ for domain in "${ALLOWED_DOMAINS[@]}"; do
             echo "ERROR: Invalid IP from DNS for $domain: $ip"
             exit 1
         fi
-        echo "Adding $ip for $domain"
-        ipset add allowed-domains "$ip"
+        if [[ -z ${added_ips[$ip]+_} ]]; then
+            echo "Adding $ip for $domain"
+            ipset add allowed-domains "$ip"
+            added_ips[$ip]=1
+        else
+            echo "Skipping duplicate IP $ip for $domain"
+        fi
     done < <(echo "$ips")
 done
 

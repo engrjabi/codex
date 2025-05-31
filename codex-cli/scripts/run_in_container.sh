@@ -1,12 +1,16 @@
 #!/bin/bash
+# Exit immediately if a command exits with a non-zero status.
 set -e
 
+# Docker image to use; override with DOCKER_IMAGE env var. Defaults to 'codex'.
+DOCKER_IMAGE="${DOCKER_IMAGE:-codex}"
+
 # Usage:
-#   ./run_in_container.sh [--work_dir directory] "COMMAND"
+#   DOCKER_IMAGE=<docker/image:tag> ./run_in_container.sh [--work_dir directory] "COMMAND"
 #
-#   Examples:
-#     ./run_in_container.sh --work_dir project/code "ls -la"
-#     ./run_in_container.sh "echo Hello, world!"
+# Examples:
+#   DOCKER_IMAGE=myrepo/codex:latest ./run_in_container.sh --work_dir project/code "ls -la"
+#   DOCKER_IMAGE=myrepo/codex:latest ./run_in_container.sh "echo Hello, world!"
 
 # Default the work directory to WORKSPACE_ROOT_DIR if not provided.
 WORK_DIR="${WORKSPACE_ROOT_DIR:-$(pwd)}"
@@ -55,19 +59,27 @@ if [ -z "$OPENAI_ALLOWED_DOMAINS" ]; then
   exit 1
 fi
 
+# Setup a persistent home directory volume for this project to cache shared packages (Miniconda, NVM, npm)
+WORK_DIR_SAFE="${CONTAINER_NAME_PREFIX#codex_}"
+HOME_VOLUME="codex_home_${WORK_DIR_SAFE}"
+if ! docker volume inspect "$HOME_VOLUME" >/dev/null 2>&1; then
+  docker volume create "$HOME_VOLUME"
+fi
+DOCKER_USER_MOUNTS=( -v "${HOME_VOLUME}:/home/node" )
+
 # Note: do not remove existing containers to allow parallel runs
 
 # Run the container with the specified directory mounted at the same path inside the container.
 ## Run the container with the specified directory mounted; capture its container ID
 container_id=$(docker run -d \
-  -e COST_INPUT_PER_TOKEN \
-  -e COST_OUTPUT_PER_TOKEN \
-  -e OPENAI_API_KEY \
-  -e GEMINI_API_KEY \
+  -e OPENAI_BASE_URL="http://172.17.0.1:4000/v1" \
+  -e OPENAI_API_KEY="$DMS_LITE_LLM_API_KEY" \
+  -e DMS_LITE_LLM_API_KEY \
   --cap-add=NET_ADMIN \
   --cap-add=NET_RAW \
   -v "$WORK_DIR:/app$WORK_DIR" \
-  codex \
+  "${DOCKER_USER_MOUNTS[@]}" \
+  "${DOCKER_IMAGE}" \
   sleep infinity)
 
 # Write the allowed domains to a file in the container
@@ -90,7 +102,5 @@ docker exec --user root "$container_id" bash -c "/usr/local/bin/init_firewall.sh
 # Remove the firewall script after running it
 docker exec --user root "$container_id" bash -c "rm -f /usr/local/bin/init_firewall.sh"
 
-# Execute the provided command in the container, ensuring it runs in the work directory.
-# We use a parameterized bash command to safely handle the command and directory.
-
-docker exec -it "$container_id" bash -c "cd \"/app$WORK_DIR\" && codex \"\$@\"" bash "$@"
+# Launch an interactive zsh shell in the work directory inside the container.
+docker exec -it -w "/app$WORK_DIR" "$container_id" zsh
