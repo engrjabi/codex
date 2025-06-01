@@ -83,18 +83,26 @@ export function execApplyPatch(
   patchText: string,
   workdir: string | undefined = undefined,
 ): ExecResult {
-  // This find/replace is required from some models like 4.1 where the patch
-  // text is wrapped in quotes that breaks the apply_patch command.
-  let applyPatchInput = patchText
-    .replace(/('|")?<<('|")EOF('|")/, "")
-    .replace(/\*\*\* End Patch\nEOF('|")?/, "*** End Patch")
-    .trim();
+  let applyPatchInput = patchText;
+  // 1) Remove any wrapping code fences (```bash, ```, etc.)
+  applyPatchInput = applyPatchInput
+    .replace(/^```(?:\w+)?\n?/, "")
+    .replace(/\n?```$/, "");
+  // 2) Extract only the "*** Begin Patch" … "*** End Patch" envelope
+  const begin = applyPatchInput.indexOf("*** Begin Patch");
+  const endMarker = "*** End Patch";
+  const end = applyPatchInput.indexOf(endMarker);
+  if (begin !== -1 && end !== -1) {
+    applyPatchInput = applyPatchInput.slice(begin, end + endMarker.length);
+  }
+  // 3) Final trim
+  applyPatchInput = applyPatchInput.trim();
 
   if (!applyPatchInput.endsWith(PATCH_SUFFIX)) {
     applyPatchInput += "\n" + PATCH_SUFFIX;
   }
 
-  log(`Applying patch: \`\`\`${applyPatchInput}\`\`\`\n\n`);
+  log(`Applying patch: \`\`\`${applyPatchInput}\`\`\``);
 
   try {
     const result = process_patch(

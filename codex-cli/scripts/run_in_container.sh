@@ -2,6 +2,49 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
+# Load environment variables from .env in the current directory if it exists
+if [ -f .env ]; then
+  echo "Loading environment variables from .env"
+  set -o allexport
+  source .env
+  set +o allexport
+fi
+
+# Print helper message about expected environment variables on each run
+cat << 'EOF'
+Environment variables:
+
+Required:
+  DMS_LITE_LLM_API_KEY         Lite LLM API key for the sandbox environment.
+
+Optional:
+  OPENAI_ALLOWED_DOMAINS       Space-separated list of allowed domains (default: api.openai.com).
+  DOCKER_IMAGE                 Docker image to use (default: codex).
+  WORKSPACE_ROOT_DIR           Default work directory (default: current directory).
+EOF
+echo ""
+
+# Required environment variables:
+#   DMS_LITE_LLM_API_KEY         OpenAI API key for the sandbox environment.
+#
+# Optional environment variables:
+#   OPENAI_ALLOWED_DOMAINS       Space-separated list of allowed domains (default: api.openai.com).
+#   DOCKER_IMAGE                 Docker image to use (default: codex).
+#   WORKSPACE_ROOT_DIR           Default work directory (default: current directory).
+
+# Check for required environment variables
+REQUIRED_ENVS=(DMS_LITE_LLM_API_KEY)
+missing_envs=()
+for var in "${REQUIRED_ENVS[@]}"; do
+  if [ -z "${!var}" ]; then
+    missing_envs+=("$var")
+  fi
+done
+if [ ${#missing_envs[@]} -gt 0 ]; then
+  echo "Error: Missing required environment variables: ${missing_envs[*]}"
+  exit 1
+fi
+
 # Docker image to use; override with DOCKER_IMAGE env var. Defaults to 'codex'.
 DOCKER_IMAGE="${DOCKER_IMAGE:-codex}"
 

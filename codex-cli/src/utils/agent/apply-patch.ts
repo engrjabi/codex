@@ -806,6 +806,7 @@ For instructions on [context_before] and [context_after]:
 [3 lines of post-context]
 
 Note, then, that we do not use line numbers in this diff format, as the context is enough to uniquely identify code. An example of a message that you might pass as "input" to this function, in order to apply a patch, is shown below.
+ - The context lines (\`[context_before]\` and \`[context_after]\`) must match the target file exactly, including indentation, whitespace, and all characters. Git uses this context to locate and apply your patch; if the context does not match, the patch will fail to apply.
 
 \`\`\`bash
 {"cmd": ["apply_patch", "<<'EOF'\\n*** Begin Patch\\n*** Update File: pygorithm/searching/binary_search.py\\n@@ class BaseClass\\n@@     def search():\\n-        pass\\n+        raise NotImplementedError()\\n@@ class Subclass\\n@@     def search():\\n-        pass\\n+        raise NotImplementedError()\\n*** End Patch\\nEOF\\n"], "workdir": "..."}

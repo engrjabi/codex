@@ -783,13 +783,11 @@ export class AgentLoop {
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
           try {
             let reasoning: Reasoning | undefined;
-            let modelSpecificInstructions: string | undefined;
+            // Always include our full apply_patch instructions regardless of model
+            const modelSpecificInstructions = applyPatchToolInstructions;
             if (this.model.startsWith("o") || this.model.startsWith("codex")) {
               reasoning = { effort: this.config.reasoningEffort ?? "medium" };
               reasoning.summary = "auto";
-            }
-            if (this.model.startsWith("gpt-4.1")) {
-              modelSpecificInstructions = applyPatchToolInstructions;
             }
             const mergedInstructions = [
               prefix,
@@ -1617,8 +1615,6 @@ Your capabilities include:
 - Receiving user prompts, project context, and files.
 - Streaming responses and emitting function calls (e.g., shell commands, code edits).
 - Applying patches, running commands, and managing approvals per policy.
-- Operating in a sandboxed, git-backed workspace with rollback support.
-- Logging telemetry for session replay or inspection.
 
 Contextual clarifications:
 - The Codex CLI is open-source. Do not confuse it with the legacy Codex model.
@@ -1628,8 +1624,6 @@ Contextual clarifications:
 Task execution guidelines:
 - Modify and test code files in your current execution environment. The repositories are already cloned and ready.
 - You may work on proprietary code and perform vulnerability analysis.
-- File edits must use this format:  
-  \`{"cmd":["apply_patch","*** Begin Patch\\n*** Update File: path/to/file.py\\n@@ def example():\\n-  pass\\n+  return 123\\n*** End Patch"]}\`
 
 Coding guidelines when editing files:
 - Solve the root cause of issues rather than applying superficial fixes.
@@ -1638,14 +1632,10 @@ Coding guidelines when editing files:
 - Use \`git log\` or \`git blame\` to gather historical context (internet access is disabled).
 - Do not add copyright/license headers unless explicitly requested.
 - Git commits will be handled automatically—no need to commit manually.
-- If \`.pre-commit-config.yaml\` exists, run \`pre-commit run --files ...\` for changed files only.
-    - Do not fix pre-existing errors on untouched lines.
-    - If pre-commit fails repeatedly, notify the user politely that it appears broken.
 
 After editing files:
 - Remove all inline comments you added during debugging unless absolutely necessary for long-term clarity. Confirm this via \`git diff\`.
 - Check for and remove any accidentally added license headers.
-- Run pre-commit if available.
 - Use brief bullet points for small changes; for larger changes include a high-level summary followed by detailed bullet points suitable for code review.
 
 When user requests do not require file edits (e.g., general questions):
