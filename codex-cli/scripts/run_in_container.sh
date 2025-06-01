@@ -18,14 +18,14 @@ WORK_DIR="${WORKSPACE_ROOT_DIR:-$(pwd)}"
 OPENAI_ALLOWED_DOMAINS="${OPENAI_ALLOWED_DOMAINS:-api.openai.com}"
 
 # Parse optional flag.
-if [ "$1" = "--work_dir" ]; then
-  if [ -z "$2" ]; then
-    echo "Error: --work_dir flag provided but no directory specified."
-    exit 1
-  fi
-  WORK_DIR="$2"
-  shift 2
-fi
+#if [ "$1" = "--work_dir" ]; then
+#  if [ -z "$2" ]; then
+#    echo "Error: --work_dir flag provided but no directory specified."
+#    exit 1
+#  fi
+#  WORK_DIR="$2"
+#  shift 2
+#fi
 
 WORK_DIR=$(realpath "$WORK_DIR")
 
@@ -42,10 +42,10 @@ cleanup() {
 trap cleanup EXIT
 
 # Ensure a command is provided.
-if [ "$#" -eq 0 ]; then
-  echo "Usage: $0 [--work_dir directory] "COMMAND""
-  exit 1
-fi
+#if [ "$#" -eq 0 ]; then
+#  echo "Usage: $0 [--work_dir directory] "COMMAND""
+#  exit 1
+#fi
 
 # Check if WORK_DIR is set.
 if [ -z "$WORK_DIR" ]; then
