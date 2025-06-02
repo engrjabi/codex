@@ -221,25 +221,46 @@ class Parser {
             (c) =>
               (
                 ({
+                  // Dash / hyphen variants
                   "-": "-",
                   "\u2010": "-",
                   "\u2011": "-",
                   "\u2012": "-",
                   "\u2013": "-",
                   "\u2014": "-",
+                  "\u2015": "-",
                   "\u2212": "-",
+
+                  // Double quotes
                   "\u0022": '"',
                   "\u201C": '"',
                   "\u201D": '"',
                   "\u201E": '"',
+                  "\u201F": '"',
                   "\u00AB": '"',
                   "\u00BB": '"',
+
+                  // Single quotes
                   "\u0027": "'",
                   "\u2018": "'",
                   "\u2019": "'",
+                  "\u201A": "'",
                   "\u201B": "'",
+
+                  // Spaces
                   "\u00A0": " ",
+                  "\u2002": " ",
+                  "\u2003": " ",
+                  "\u2004": " ",
+                  "\u2005": " ",
+                  "\u2006": " ",
+                  "\u2007": " ",
+                  "\u2008": " ",
+                  "\u2009": " ",
+                  "\u200A": " ",
                   "\u202F": " ",
+                  "\u205F": " ",
+                  "\u3000": " ",
                 }) as Record<string, string>
               )[c] ?? c,
           );
@@ -360,6 +381,7 @@ function find_context_core(
     /* U+2012 FIGURE DASH */ "\u2012": "-",
     /* U+2013 EN DASH */ "\u2013": "-",
     /* U+2014 EM DASH */ "\u2014": "-",
+    /* U+2015 HORIZONTAL BAR */ "\u2015": "-",
     /* U+2212 MINUS SIGN */ "\u2212": "-",
 
     // Double quotes -----------------------------------------------------------
@@ -367,6 +389,7 @@ function find_context_core(
     /* U+201C LEFT DOUBLE QUOTATION MARK */ "\u201C": '"',
     /* U+201D RIGHT DOUBLE QUOTATION MARK */ "\u201D": '"',
     /* U+201E DOUBLE LOW-9 QUOTATION MARK */ "\u201E": '"',
+    /* U+201F DOUBLE HIGH-REVERSED-9 QUOTATION MARK */ "\u201F": '"',
     /* U+00AB LEFT-POINTING DOUBLE ANGLE QUOTATION MARK */ "\u00AB": '"',
     /* U+00BB RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK */ "\u00BB": '"',
 
@@ -374,10 +397,22 @@ function find_context_core(
     /* U+0027 APOSTROPHE */ "\u0027": "'",
     /* U+2018 LEFT SINGLE QUOTATION MARK */ "\u2018": "'",
     /* U+2019 RIGHT SINGLE QUOTATION MARK */ "\u2019": "'",
+    /* U+201A SINGLE LOW-9 QUOTATION MARK */ "\u201A": "'",
     /* U+201B SINGLE HIGH-REVERSED-9 QUOTATION MARK */ "\u201B": "'",
     // Spaces ------------------------------------------------------------------
     /* U+00A0 NO-BREAK SPACE */ "\u00A0": " ",
+    /* U+2002 EN SPACE */ "\u2002": " ",
+    /* U+2003 EM SPACE */ "\u2003": " ",
+    /* U+2004 THREE-PER-EM SPACE */ "\u2004": " ",
+    /* U+2005 FOUR-PER-EM SPACE */ "\u2005": " ",
+    /* U+2006 SIX-PER-EM SPACE */ "\u2006": " ",
+    /* U+2007 FIGURE SPACE */ "\u2007": " ",
+    /* U+2008 PUNCTUATION SPACE */ "\u2008": " ",
+    /* U+2009 THIN SPACE */ "\u2009": " ",
+    /* U+200A HAIR SPACE */ "\u200A": " ",
     /* U+202F NARROW NO-BREAK SPACE */ "\u202F": " ",
+    /* U+205F MEDIUM MATHEMATICAL SPACE */ "\u205F": " ",
+    /* U+3000 IDEOGRAPHIC SPACE */ "\u3000": " ",
   };
 
   const canon = (s: string): string =>
@@ -386,44 +421,74 @@ function find_context_core(
       .normalize("NFC")
       // Replace punctuation look-alikes
       .replace(/./gu, (c) => PUNCT_EQUIV[c] ?? c);
+
+  // -----------------------------------------------------------------------
+  // Fast-path checks
+  // -----------------------------------------------------------------------
+
   if (context.length === 0) {
     return [start, 0];
   }
-  // Pass 1 – exact equality after canonicalisation ---------------------------
-  const canonicalContext = canon(context.join("\n"));
-  for (let i = start; i < lines.length; i++) {
-    const segment = canon(lines.slice(i, i + context.length).join("\n"));
-    if (segment === canonicalContext) {
-      return [i, 0];
-    }
+  if (context.length > lines.length) {
+    // Impossible match – context is longer than the file body.
+    return [-1, 0];
   }
 
-  // Pass 2 – ignore trailing whitespace -------------------------------------
-  for (let i = start; i < lines.length; i++) {
-    const segment = canon(
-      lines
-        .slice(i, i + context.length)
-        .map((s) => s.trimEnd())
-        .join("\n"),
-    );
-    const ctx = canon(context.map((s) => s.trimEnd()).join("\n"));
-    if (segment === ctx) {
-      return [i, 1];
+  // Search window upper bound (inclusive)
+  const maxIndex = lines.length - context.length;
+
+  // -----------------------------------------------------------------------
+  // Helper – seek sequence using an element-level transform
+  // -----------------------------------------------------------------------
+
+  const seekSequence = (
+    transform: (s: string) => string,
+  ): number => {
+    for (let i = start; i <= maxIndex; i++) {
+      let matched = true;
+      for (let j = 0; j < context.length; j++) {
+        if (transform(lines[i + j]!) !== transform(context[j]!)) {
+          matched = false;
+          break;
+        }
+      }
+      if (matched) {
+        return i;
+      }
     }
+    return -1;
+  };
+
+  // -----------------------------------------------------------------------
+  // Pass 1 – strict equality
+  // -----------------------------------------------------------------------
+  let idx = seekSequence((s) => s);
+  if (idx !== -1) {
+    return [idx, 0];
   }
 
-  // Pass 3 – ignore all surrounding whitespace ------------------------------
-  for (let i = start; i < lines.length; i++) {
-    const segment = canon(
-      lines
-        .slice(i, i + context.length)
-        .map((s) => s.trim())
-        .join("\n"),
-    );
-    const ctx = canon(context.map((s) => s.trim()).join("\n"));
-    if (segment === ctx) {
-      return [i, 100];
-    }
+  // -----------------------------------------------------------------------
+  // Pass 2 – ignore trailing whitespace
+  // -----------------------------------------------------------------------
+  idx = seekSequence((s) => s.trimEnd());
+  if (idx !== -1) {
+    return [idx, 1];
+  }
+
+  // -----------------------------------------------------------------------
+  // Pass 3 – ignore leading & trailing whitespace
+  // -----------------------------------------------------------------------
+  idx = seekSequence((s) => s.trim());
+  if (idx !== -1) {
+    return [idx, 100];
+  }
+
+  // -----------------------------------------------------------------------
+  // Pass 4 – Unicode-normalised comparison
+  // -----------------------------------------------------------------------
+  idx = seekSequence(canon);
+  if (idx !== -1) {
+    return [idx, 1000];
   }
 
   return [-1, 0];
@@ -436,16 +501,20 @@ function find_context(
   eof: boolean,
 ): [number, number] {
   if (eof) {
-    let [newIndex, fuzz] = find_context_core(
-      lines,
-      context,
-      lines.length - context.length,
-    );
-    if (newIndex !== -1) {
-      return [newIndex, fuzz];
+    // Try matching at file-end first to honour hunks marked with an explicit
+    // "End Of File" flag.  This avoids O(N²) scanning in large files when the
+    // context is intended to sit at the very bottom.
+    const anchor = lines.length - context.length;
+    if (anchor >= 0) {
+      const [idx, fuzz] = find_context_core(lines, context, anchor);
+      if (idx !== -1) {
+        return [idx, fuzz];
+      }
     }
-    [newIndex, fuzz] = find_context_core(lines, context, start);
-    return [newIndex, fuzz + 10000];
+
+    // Fallback to full scan from the top.
+    const [idx, fuzz] = find_context_core(lines, context, start);
+    return [idx, fuzz + 10000];
   }
   return find_context_core(lines, context, start);
 }
