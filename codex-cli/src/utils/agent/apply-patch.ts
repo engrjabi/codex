@@ -609,11 +609,62 @@ function peek_next_section(
 // High‑level helpers
 // -----------------------------------------------------------------------------
 
+/**
+ * Filters out any lines that are not valid unified-diff tokens.
+ * Keeps only lines starting with ***, ---, +++, @@, space, '+', or '-'.
+ */
+function sanitize_patch_lines(lines: string[]): string[] {
+  const tokenRegex = /^(\*\*\*|---|\+\+\+|@@|[ \+\-]).*/;
+  return lines
+    .filter((l) => tokenRegex.test(l))
+    .map((l) => l.trimEnd());
+}
+
+/**
+ * Auto-repair common hunk header typos like missing counts or spaces vs commas.
+ * Transforms:
+ *  - "@@ -12 +12 @@"       → "@@ -12,0 +12,0 @@"
+ *  - "@@ -12 3 +12 3 @@"     → "@@ -12,3 +12,3 @@"
+ */
+function repair_hunk_headers(lines: string[]): string[] {
+  const hunkRegex = /^@@ -(\d+)(?:[ ,](\d+))? \+(\d+)(?:[ ,](\d+))? @@$/;
+  return lines.map((l) => {
+    const m = l.match(hunkRegex);
+    if (!m) return l;
+    const [, start, delCount, insStart, insCount] = m;
+    const dc = delCount ?? '0';
+    const ic = insCount ?? '0';
+    return `@@ -${start},${dc} +${insStart},${ic} @@`;
+  });
+}
+/**
+ * Strip non-printable control characters (excluding tab) from patch lines.
+ * Logs a warning when such characters are removed.
+ */
+function strip_control_chars(lines: string[]): string[] {
+  const ctrlRegex = /[\x00-\x08\x0B-\x0C\x0E-\x1F]/g;
+  return lines.map((l) => {
+    if (ctrlRegex.test(l)) {
+      console.warn(`Stripping invalid control characters from patch line: ${JSON.stringify(l)}`);
+    }
+    return l.replace(ctrlRegex, '');
+  });
+}
+
 export function text_to_patch(
   text: string,
   orig: Record<string, string>,
 ): [Patch, number] {
-  const lines = text.trim().split("\n");
+  // Phase 1: Mini-normalization + Patch Sanitizer
+  // Normalize line endings and trim global whitespace
+  const normalizedText = text.replace(/\r?\n/g, "\n").trim();
+  // Split into raw lines and sanitize
+  const rawLines = normalizedText.split("\n");
+  const sanitized = sanitize_patch_lines(rawLines);
+  // Strip invalid control characters
+  const cleaned = strip_control_chars(sanitized);
+  // Repair hunk headers for missing counts or comma/space typos
+  const lines = repair_hunk_headers(cleaned);
   if (
     lines.length < 2 ||
     !(lines[0] ?? "").startsWith(PATCH_PREFIX.trim()) ||
@@ -808,6 +859,31 @@ function write_file(p: string, content: string): void {
 function remove_file(p: string): void {
   fs.unlinkSync(p);
 }
+/**
+ * Splits a full patch text into individual *** Begin/End Patch blocks.
+ */
+function split_patch_blocks(text: string): string[] {
+  const blocks: string[] = [];
+  const lines = text.split(/\r?\n/);
+  let current: string[] | null = null;
+  for (const line of lines) {
+    if (line.startsWith(PATCH_PREFIX)) {
+      current = [line];
+      continue;
+    }
+    if (current) {
+      current.push(line);
+      if (line.startsWith(PATCH_SUFFIX)) {
+        blocks.push(current.join("\n"));
+        current = null;
+      }
+    }
+  }
+  if (current) {
+    throw new Error("Unterminated patch block");
+  }
+  return blocks;
+}
 
 // -----------------------------------------------------------------------------
 // CLI mode. Not exported, executed only if run directly.
@@ -823,20 +899,19 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.error("Please pass patch text through stdin");
       process.exit(1);
     }
-    try {
-      const result = process_patch(
-        patchText,
-        open_file,
-        write_file,
-        remove_file,
-      );
-      // eslint-disable-next-line no-console
-      console.log(result);
-    } catch (err: unknown) {
-      // eslint-disable-next-line no-console
-      console.error(err instanceof Error ? err.message : String(err));
-      process.exit(1);
+    // Split into multiple patch blocks and apply each in sequence
+    const blocks = split_patch_blocks(patchText);
+    for (const block of blocks) {
+      try {
+        process_patch(block, open_file, write_file, remove_file);
+      } catch (err: unknown) {
+        // eslint-disable-next-line no-console
+        console.error(err instanceof Error ? err.message : String(err));
+        process.exit(1);
+      }
     }
+    // eslint-disable-next-line no-console
+    console.log("Done!");
   });
 }
 
