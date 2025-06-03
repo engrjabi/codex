@@ -1,6 +1,6 @@
  # Plan for “Self-Correcting” `apply_patch` in TypeScript
 
- _Last updated: 2025-06-02_
+ _Last updated: 2025-06-03_
 
  ## Goal
 
@@ -34,8 +34,6 @@
  ## 2. High-Level Enhancements
 
  We will layer in multiple self-healing “micro-features” without throwing out the existing multi-pass engine:
- 0. **Multi-Block Patch Dispatcher**  
-    - Split large heredocs into individual `*** Begin Patch…*** End Patch
 
  1. **Patch Sanitizer**  
     - Strip non-diff lines (anything not beginning with `***`,`---`,`+++`,`@@`,` `, `+`, `-`).  
