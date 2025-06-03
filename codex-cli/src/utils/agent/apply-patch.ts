@@ -516,24 +516,48 @@ function find_context(
   start: number,
   eof: boolean,
 ): [number, number] {
+  // Primary context search
+  let idx: number;
+  let fuzz: number;
   if (eof) {
-    // Try matching at file-end first to honour hunks marked with an explicit
-    // "End Of File" flag.  This avoids O(N²) scanning in large files when the
-    // context is intended to sit at the very bottom.
+    // Honour explicit EOF hunks by trying the end first
     const anchor = lines.length - context.length;
     if (anchor >= 0) {
-      const [idx, fuzz] = find_context_core(lines, context, anchor);
+      [idx, fuzz] = find_context_core(lines, context, anchor);
       if (idx !== -1) {
         return [idx, fuzz];
       }
     }
-
-    // Fallback to full scan from the top.
-    const [idx, fuzz] = find_context_core(lines, context, start);
-    return [idx, fuzz + 10000];
+    // Full scan with EOF penalty
+    [idx, fuzz] = find_context_core(lines, context, start);
+    fuzz += 10000;
+  } else {
+    [idx, fuzz] = find_context_core(lines, context, start);
   }
-  return find_context_core(lines, context, start);
+  // Greedy Levenshtein-Fallback: scan ±2 lines for exact prefix match
+  if (idx === -1 && context.length > 0) {
+    const maxIndex = lines.length - context.length;
+    for (let shift = -2; shift <= 2; shift++) {
+      const i = start + shift;
+      if (i < 0 || i > maxIndex) continue;
+      let matchCount = 0;
+      for (let j = 0; j < context.length; j++) {
+        if (lines[i + j] === context[j]) {
+          matchCount++;
+        }
+      }
+      if (matchCount / context.length >= 0.8) {
+        // Bump fuzz to indicate fallback
+        return [i, fuzz + 50000];
+      }
+    }
+  }
+  return [idx, fuzz];
 }
+
+/**
+ * Greedy Levenshtein-Fallback (±2 line scan) moved into find_context.
+ */
 
 function peek_next_section(
   lines: Array<string>,

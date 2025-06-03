@@ -54,10 +54,10 @@
     - Warn (but don’t fail) on invalid control or non-UTF8 characters, then strip them.
 
  4. **Greedy Levenshtein-Fallback**  
-    - If all multi-pass attempts fail at nominal offset:  
-      1. Scan within ±2 lines for each context line.  
-      2. Accept hunk if ≥80% of lines match exactly at some shifted offset.  
-    - Bump fuzz score only on this final pass.
+    - Merged into `find_context`: after the standard multi-pass (strict, trimEnd, trimBoth, normalize)
+      we scan ±2 lines around the given anchor. If ≥80% of the context lines match exactly at
+      any shifted offset, we accept that location.
+    - We bump the fuzz score when using this fallback so it can be audited later.
 
  5. **Hunk-Level Consistency Check**  
     - After insert/delete splice, verify actual line-counts == header counts.  
@@ -95,9 +95,9 @@
  • Run on both patch context & target file buffer before any matching.
 
  ### 3.4 Greedy Levenshtein-Fallback  
- 1. Build a sliding window (±2 lines) around target start.  
- 2. For each candidate offset, count exact matches.  
- 3. If `matches / contextLen ≥ 0.8`, accept at that offset.
+1. Already implemented in `find_context` (Phase 4+ fallback).
+2. After strict, trimEnd, trimBoth, and Unicode-normalized passes, scan offsets in `[start-2 .. start+2]`.
+3. If `(matches / contextLen) ≥ 0.8`, accept and bump fuzz by +50k.
 
  ### 3.5 Hunk-Level Consistency Check  
  After splicing:
