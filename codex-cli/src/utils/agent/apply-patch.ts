@@ -191,6 +191,9 @@ class Parser {
     const fileLines = text.split("\n");
     let index = 0;
 
+    // Track expected counts per hunk for consistency check
+    let expectedDel = 0;
+    let expectedIns = 0;
     while (
       !this.is_done([
         PATCH_SUFFIX,
@@ -200,7 +203,20 @@ class Parser {
         END_OF_FILE_PREFIX,
       ])
     ) {
+      // Read hunk header counts if present
       const defStr = this.read_str("@@ ");
+      if (defStr) {
+        // defStr is like "-start,del +start,ins @@"
+        const hdr = `@@ ${defStr.trim()}`;
+        const m = hdr.match(/^@@ -(\d+),(\d+) \+(\d+),(\d+) @@$/);
+        if (m) {
+          expectedDel = parseInt(m[2], 10);
+          expectedIns = parseInt(m[4], 10);
+        } else {
+          expectedDel = 0;
+          expectedIns = 0;
+        }
+      }
       let sectionStr = "";
       if (!defStr && this.lines[this.index] === "@@") {
         sectionStr = this.lines[this.index]!;
@@ -573,6 +589,13 @@ function peek_next_section(
     line = line.slice(1);
     if (mode === "keep" && lastMode !== mode) {
       if (insLines.length || delLines.length) {
+        // Hunk-Level Consistency Check before pushing chunk
+        if ((expectedDel && delLines.length !== expectedDel) ||
+            (expectedIns && insLines.length !== expectedIns)) {
+          throw new DiffError(
+            `Hunk counts mismatch: expected ${expectedDel} deletions, ${expectedIns} additions; got ${delLines.length} deletions, ${insLines.length} additions`
+          );
+        }
         chunks.push({
           orig_index: old.length - delLines.length,
           del_lines: delLines,
@@ -592,6 +615,13 @@ function peek_next_section(
     }
   }
   if (insLines.length || delLines.length) {
+    // Final hunk-level consistency check
+    if ((expectedDel && delLines.length !== expectedDel) ||
+        (expectedIns && insLines.length !== expectedIns)) {
+      throw new DiffError(
+        `Hunk counts mismatch on final chunk: expected ${expectedDel}/${expectedIns}; got ${delLines.length}/${insLines.length}`
+      );
+    }
     chunks.push({
       orig_index: old.length - delLines.length,
       del_lines: delLines,
