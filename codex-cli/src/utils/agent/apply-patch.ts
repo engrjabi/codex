@@ -552,6 +552,37 @@ function find_context(
       }
     }
   }
+  // Phase 7: Context-Drift Repair
+  if (idx !== -1 && context.length > 0) {
+    const maxShift = 2;
+    // check first few context lines match
+    const prefixLen = Math.min(3, context.length);
+    let prefixOk = true;
+    for (let i = 0; i < prefixLen; i++) {
+      if (lines[idx + i] !== context[i]) {
+        prefixOk = false;
+        break;
+      }
+    }
+    if (prefixOk) {
+      // count consecutive mismatches after prefix
+      let drift = 0;
+      for (let j = prefixLen; j < context.length && drift < maxShift; j++) {
+        if (lines[idx + j] !== context[j]) {
+          drift++;
+        } else {
+          break;
+        }
+      }
+      if (drift > 0 && drift <= maxShift) {
+        const [newIdx, newFuzz] = find_context_core(lines, context, idx + drift);
+        if (newIdx !== -1) {
+          // bump fuzz for drift repair
+          return [newIdx, fuzz + 2000];
+        }
+      }
+    }
+  }
   return [idx, fuzz];
 }
 
