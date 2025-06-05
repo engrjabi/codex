@@ -8,6 +8,7 @@ import path from "path";
 import React, { useEffect, useState } from "react";
 
 const SESSIONS_ROOT = path.join(os.homedir(), ".codex", "sessions");
+const ERRORS_ROOT = path.join(SESSIONS_ROOT, "errors");
 
 export type SessionMeta = {
   path: string;
@@ -18,14 +19,21 @@ export type SessionMeta = {
 };
 
 async function loadSessions(): Promise<Array<SessionMeta>> {
-  try {
-    const entries = await fs.readdir(SESSIONS_ROOT);
-    const sessions: Array<SessionMeta> = [];
+  const sessions: Array<SessionMeta> = [];
+  // Load sessions from main root and error subdirectory
+  const roots = [SESSIONS_ROOT, ERRORS_ROOT];
+  for (const root of roots) {
+    let entries: string[];
+    try {
+      entries = await fs.readdir(root);
+    } catch {
+      continue;
+    }
     for (const entry of entries) {
       if (!entry.endsWith(".json")) {
         continue;
       }
-      const filePath = path.join(SESSIONS_ROOT, entry);
+      const filePath = path.join(root, entry);
       try {
         // eslint-disable-next-line no-await-in-loop
         const content = await fs.readFile(filePath, "utf-8");
@@ -60,11 +68,10 @@ async function loadSessions(): Promise<Array<SessionMeta>> {
         /* ignore invalid session */
       }
     }
-    sessions.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-    return sessions;
-  } catch {
-    return [];
   }
+  // Sort by timestamp descending
+  sessions.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  return sessions;
 }
 
 type Props = {

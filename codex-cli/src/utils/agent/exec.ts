@@ -84,6 +84,24 @@ export function execApplyPatch(
   workdir: string | undefined = undefined,
 ): ExecResult {
   let applyPatchInput = patchText;
+  // 0) If wrapped in a here-doc (e.g., <<DELIM ... DELIM), strip that wrapper
+  {
+    const lines = applyPatchInput.split("\n");
+    const opener = lines[0]?.match(/^\s*<<\s*['"]?([A-Za-z0-9_]+)['"]?\s*$/);
+    if (opener) {
+      const delim = opener[1];
+      const last = lines[lines.length - 1]?.trim();
+      if (last === delim) {
+        applyPatchInput = lines.slice(1, -1).join("\n");
+      } else {
+        applyPatchInput = lines.slice(1).join("\n");
+      }
+    }
+  }
+  // 0) Strip any leading here-doc opener lines (e.g., "<< 'EOF'" or "<<EOF").
+  applyPatchInput = applyPatchInput.replace(/^\s*<<\s*['"]?[^'\n]+['"]?\s*\n/, "");
+  // 0) Strip trailing here-doc delimiter if present (e.g., "EOF").
+  applyPatchInput = applyPatchInput.replace(/\n^[ \t]*[A-Z0-9_]+\s*$/m, "");
   // 1) Remove any wrapping code fences (```bash, ```, etc.)
   applyPatchInput = applyPatchInput
     .replace(/^```(?:\w+)?\n?/, "")

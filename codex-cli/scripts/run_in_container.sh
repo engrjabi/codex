@@ -105,6 +105,28 @@ fi
 # Setup a persistent home directory volume for this project to cache shared packages (Miniconda, NVM, npm)
 WORK_DIR_SAFE="${CONTAINER_NAME_PREFIX#codex_}"
 HOME_VOLUME="codex_home_${WORK_DIR_SAFE}"
+# Handle subcommands: clear removes the volume, start runs alias cx
+START_MODE=false
+if [ "$1" = "start" ]; then
+  START_MODE=true
+  shift
+fi
+if [ "$1" = "clear" ]; then
+  # Remove any containers using this volume, then delete the volume
+  if ! docker volume inspect "$HOME_VOLUME" >/dev/null 2>&1; then
+    echo "Volume $HOME_VOLUME does not exist"
+    exit 0
+  fi
+  # Find containers using the volume
+  using=$(docker ps -aq --filter volume=$HOME_VOLUME)
+  if [ -n "$using" ]; then
+    echo "Stopping and removing containers using volume $HOME_VOLUME: $using"
+    docker rm -f $using >/dev/null 2>&1 || true
+  fi
+  echo "Removing volume $HOME_VOLUME"
+  docker volume rm "$HOME_VOLUME"
+  exit 0
+fi
 if ! docker volume inspect "$HOME_VOLUME" >/dev/null 2>&1; then
   docker volume create "$HOME_VOLUME"
 fi
@@ -145,5 +167,9 @@ docker exec --user root "$container_id" bash -c "/usr/local/bin/init_firewall.sh
 # Remove the firewall script after running it
 docker exec --user root "$container_id" bash -c "rm -f /usr/local/bin/init_firewall.sh"
 
+# Launch using alias cx if start subcommand was used
+if [ "$START_MODE" = true ]; then
+  docker exec -it -w "/app$WORK_DIR" "$container_id" zsh -ic "cx"
+fi
 # Launch an interactive zsh shell in the work directory inside the container.
 docker exec -it -w "/app$WORK_DIR" "$container_id" zsh

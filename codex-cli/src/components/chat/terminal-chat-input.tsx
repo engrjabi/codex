@@ -55,6 +55,7 @@ export default function TerminalChatInput({
   openHelpOverlay,
   openDiffOverlay,
   openSessionsOverlay,
+  sessionId,
   onCompact,
   interruptAgent,
   active,
@@ -79,6 +80,7 @@ export default function TerminalChatInput({
   openHelpOverlay: () => void;
   openDiffOverlay: () => void;
   openSessionsOverlay: () => void;
+  sessionId: string;
   onCompact: () => void;
   interruptAgent: () => void;
   active: boolean;
@@ -855,15 +857,14 @@ export default function TerminalChatInput({
         ) : (
           <Text dimColor>
             ctrl+c to exit | "/" to see commands | enter to send
-            {contextLeftPercent > 25 && (
+            {contextLeftPercent > 25 ? (
               <>
                 {" — "}
                 <Text color={contextLeftPercent > 40 ? "green" : "yellow"}>
                   {Math.round(contextLeftPercent)}% context left
                 </Text>
               </>
-            )}
-            {contextLeftPercent <= 25 && (
+            ) : (
               <>
                 {" — "}
                 <Text color="red">
@@ -874,6 +875,13 @@ export default function TerminalChatInput({
             )}
           </Text>
         )}
+        {/* Always show session ID */}
+        <Text dimColor>
+          {"| session: "}
+          <Text color="magentaBright">
+            {sessionId || "no-session"}
+          </Text>
+        </Text>
       </Box>
     </Box>
   );

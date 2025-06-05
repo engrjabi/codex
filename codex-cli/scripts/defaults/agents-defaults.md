@@ -1,46 +1,47 @@
-🛡️ Git Safety & Behavior Rules for Codex CLI Agent
+### Git Command Safety
 
-These additional behavioral rules apply to Git operations and user commands within the Codex CLI. Follow them strictly to ensure safe collaboration, preserve user work, and prevent unintended destructive actions.
-
-🔒 Git File Safety Rules
-
-- Never run `git reset`, `git checkout`, or other destructive Git commands unless explicitly approved by the user.
-    - If such a command is requested or appears necessary (e.g., to resolve merge conflicts or sync branches), clearly explain why and ask the user before proceeding.
-
+- Do not run destructive commands (e.g., `git reset`, `git checkout`) unless explicitly approved by the user.
+  - If such a command seems necessary, clearly explain why and ask for confirmation before proceeding.
 - Always preserve uncommitted local changes.
-    - Assume any existing changes are important unless made by you during this session.
-    - Do not discard, revert, or overwrite them without direct confirmation from the user.
+  - Treat all pre-existing uncommitted changes as important unless created by you during this session.
+  - Never discard, revert, or overwrite these changes without direct user confirmation.
 
-🚦 Approved Git Operations
+### Permitted Actions
 
-- ✅ You may create new branches (e.g., via `git checkout -b <branch>`), if doing so is relevant to solving the user's task.
-- ❌ Never push to remote repositories unless explicitly instructed.
-- ❌ Never merge branches automatically—wait for clear user direction.
-- ❌ Do not auto-stage files unless the user has requested this or it is already part of an approved workflow.
+- You may create new branches (e.g., `git checkout -b <branch>`) if relevant to the user’s task.
+- Do not push to remote repositories or merge branches unless explicitly instructed by the user.
+- Do not auto-stage files unless the user requests it or it’s part of an approved workflow.
 
-💬 Interpreting User Commands
+### User Command Aliases
 
-If the user issues a single-word command, match it against these aliases:
+Support single-word user commands as aliases. Currently defined:
 
-| User Command | Action |
-|--------------|--------|
-| `cmm`        | Same as `commit`. |
-| `commit`     | Commit all currently staged or tracked modified files. |
+| User Command | Action                                     |
+|--------------|--------------------------------------------|
+| `cmm`        | Same as `commit`.                          |
+| `commit`     | Commit all currently staged/tracked files. |
 
-⚙️ Behavior for `commit` / `cmm`
+_Note: Additional aliases may be added in the future._
 
-When instructed to `commit`:
+### Commit Behavior (`commit` / `cmm`)
 
-1. Automatically generate a descriptive commit message based on the current diff.
-    - Follow conventional commit formatting when appropriate (e.g., `fix:`, `feat:`, etc.).
-2. Execute the commit using the generated message.
-3. Do not push changes or merge branches unless explicitly told to do so.
-4. Only commit files that are already staged or clearly tracked.
-    - Do not stage all modified files unless explicitly asked.
+When processing a `commit` or `cmm` command:
 
-🚫 Never Do the Following Without Explicit User Instruction
+1. **If there are tracked files with uncommitted changes:**  
+   - Analyze the current diff and generate a concise, descriptive commit message, following conventional commit formatting where appropriate.
+2. **If there are no unsaved changes:**  
+   - Review the last commit. If its message is unclear or insufficient, analyze the file changes from that commit and update the message accordingly.
+3. Only commit staged or clearly tracked files; do not stage additional files unless explicitly instructed.
+4. Do not push or merge changes unless explicitly told to do so.
 
-- ❌ Do not discard uncommitted changes.
-- ❌ Do not auto-stage all modified files.
-- ❌ Do not run `git reset`, `checkout`, or similar commands unless approved.
-- ❌ Do not assume intent to push, merge, or sync—always ask first.
+### Handling Uncommitted Changes
+
+- Before modifying files or running commands, use `git status --porcelain` to check for uncommitted changes.
+- If pre-existing uncommitted changes are found (not made in this session), do not modify or discard them automatically.
+  - Pause and ask the user how to proceed:
+    - Optionally offer to review (`git diff`), stash, or confirm it is safe to continue.
+
+### General Principles
+
+- Never discard or overwrite user code without explicit approval.
+- Always respect and preserve pre-existing file changes unless restoring your own session changes.

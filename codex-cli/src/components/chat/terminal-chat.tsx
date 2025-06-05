@@ -26,6 +26,7 @@ import {
   uniqueById,
 } from "../../utils/model-utils.js";
 import { createOpenAIClient } from "../../utils/openai-client.js";
+import { setSessionId } from "../../utils/session.js";
 import { shortCwd } from "../../utils/short-path.js";
 import { saveRollout } from "../../utils/storage/save-rollout.js";
 import { CLI_VERSION } from "../../version.js";
@@ -209,6 +210,9 @@ export default function TerminalChat({
   const [initialImagePaths, setInitialImagePaths] =
     useState(_initialImagePaths);
 
+  // Track the current session ID for display
+  const [sessionIdState, setSessionIdState] = React.useState<string>("");
+
   const PWD = React.useMemo(() => shortCwd(), []);
 
   // Keep a single AgentLoop instance alive across renders;
@@ -242,7 +246,6 @@ export default function TerminalChat({
     // Tear down any existing loop before creating a new one.
     agentRef.current?.terminate();
 
-    const sessionId = crypto.randomUUID();
     agentRef.current = new AgentLoop({
       model,
       provider,
@@ -256,7 +259,8 @@ export default function TerminalChat({
         log(`onItem: ${JSON.stringify(item)}`);
         setItems((prev) => {
           const updated = uniqueById([...prev, item as ResponseItem]);
-          saveRollout(sessionId, updated);
+          // Use the AgentLoop's sessionId, not an independent UUID
+          saveRollout(agentRef.current!.sessionId, updated);
           return updated;
         });
       },
@@ -303,6 +307,9 @@ export default function TerminalChat({
         return { review, customDenyMessage, applyPatch };
       },
     });
+    // Update displayed session ID when agent is initialized
+    setSessionIdState(agentRef.current.sessionId);
+    setSessionId(agentRef.current.sessionId);
 
     // Force a render so JSX below can "see" the freshly created agent.
     forceUpdate();
@@ -521,6 +528,7 @@ export default function TerminalChat({
               })
             }
             contextLeftPercent={contextLeftPercent}
+            sessionId={sessionIdState}
             openOverlay={() => setOverlayMode("history")}
             openModelOverlay={() => setOverlayMode("model")}
             openApprovalOverlay={() => setOverlayMode("approval")}

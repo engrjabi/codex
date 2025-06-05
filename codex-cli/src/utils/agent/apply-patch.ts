@@ -316,6 +316,8 @@ class Parser {
       const [nextChunkContext, chunks, endPatchIndex, eof] = peek_next_section(
         this.lines,
         this.index,
+        expectedDel,
+        expectedIns,
       );
       const [newIndex, fuzz] = find_context(
         fileLines,
@@ -593,6 +595,8 @@ function find_context(
 function peek_next_section(
   lines: Array<string>,
   initialIndex: number,
+  expectedDel: number = 0,
+  expectedIns: number = 0,
 ): [Array<string>, Array<Chunk>, number, boolean] {
   let index = initialIndex;
   const old: Array<string> = [];

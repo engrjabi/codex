@@ -27,21 +27,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   unzip \
   ripgrep \
   zsh \
-  && rm -rf /var/lib/apt/lists/*
+  python3.11 \
+  python3-pip \
+  python3.11-venv \
+  pipx \
+  python3-venv && rm -rf /var/lib/apt/lists/*
 
 # Ensure default node user has access to /usr/local/share
 RUN mkdir -p /usr/local/share/npm-global && \
   chown -R node:node /usr/local/share
 
-# Install Python 3.11
-RUN apt-get update && \
-    apt-get install -y python3.11 python3-pip python3.11-venv && \
-    rm -rf /var/lib/apt/lists/*
 
 # Optionally, set python3.12 as default
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
-RUN apt-get update && apt-get install -y pipx python3-venv && rm -rf /var/lib/apt/lists/*
 
 ARG USERNAME=node
 
@@ -68,13 +67,6 @@ RUN mkdir -p "$NVM_DIR" \
     && . "$NVM_DIR/nvm.sh" && nvm install --lts
 ENV PATH=$NVM_DIR/bin:$PATH
 
-# Install codex
-COPY dist/codex.tgz codex.tgz
-RUN . "$NVM_DIR/nvm.sh" && nvm use --delete-prefix default --silent && npm install -g codex.tgz
-
-# Inside the container we consider the environment already sufficiently locked
-# down, therefore instruct Codex CLI to allow running without sandboxing.
-ENV CODEX_UNSAFE_ALLOW_NO_SANDBOX=1
 
 RUN pipx install black
 ENV PATH="/home/node/.local/bin:${PATH}"
@@ -89,6 +81,11 @@ RUN curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_6
 ENV PATH="/home/node/miniconda3/bin:${PATH}"
 RUN conda init zsh && \
     conda --version
+
+# Install codex
+COPY dist/codex.tgz codex.tgz
+ENV CODEX_UNSAFE_ALLOW_NO_SANDBOX=1
+RUN . "$NVM_DIR/nvm.sh" && nvm use --delete-prefix default --silent && npm install -g codex.tgz
 
 # Copy and set up firewall script as root.
 USER root
