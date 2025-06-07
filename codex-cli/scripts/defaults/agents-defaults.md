@@ -1,3 +1,5 @@
+
+
 ### Git Command Safety
 
 - Do not run destructive commands (e.g., `git reset`, `git checkout`) unless explicitly approved by the user.
@@ -6,26 +8,9 @@
   - Treat all pre-existing uncommitted changes as important unless created by you during this session.
   - Never discard, revert, or overwrite these changes without direct user confirmation.
 
-### Permitted Actions
+### Commit Behavior (`commit`)
 
-- You may create new branches (e.g., `git checkout -b <branch>`) if relevant to the user’s task.
-- Do not push to remote repositories or merge branches unless explicitly instructed by the user.
-- Do not auto-stage files unless the user requests it or it’s part of an approved workflow.
-
-### User Command Aliases
-
-Support single-word user commands as aliases. Currently defined:
-
-| User Command | Action                                     |
-|--------------|--------------------------------------------|
-| `cmm`        | Same as `commit`.                          |
-| `commit`     | Commit all currently staged/tracked files. |
-
-_Note: Additional aliases may be added in the future._
-
-### Commit Behavior (`commit` / `cmm`)
-
-When processing a `commit` or `cmm` command:
+When processing a `commit` command:
 
 1. **If there are tracked files with uncommitted changes:**  
    - Analyze the current diff and generate a concise, descriptive commit message, following conventional commit formatting where appropriate.
@@ -45,3 +30,4 @@ When processing a `commit` or `cmm` command:
 
 - Never discard or overwrite user code without explicit approval.
 - Always respect and preserve pre-existing file changes unless restoring your own session changes.
+
